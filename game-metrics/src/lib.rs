@@ -1,3 +1,66 @@
+/// # Game-oriented Metrics Collection
+///
+/// This library leverages `hdrhistogram` and `crossbeam-channel` to allow collecting non-blocking
+/// timing metrics. This library is geared towards the specific needs of measuring metrics in a game-specific
+/// context; meaning span metrics and frame metrics; although many better libraries exist, these are
+/// all mainly geared towards web, server and async contexts.
+///
+/// The `disable` feature exists to disable the system at compile time.
+///
+/// # Example
+/// ```
+/// use game_metrics::{scope, instrument, Metrics};
+///use std::time::Duration;
+///
+///#[instrument]
+///fn long() {
+///    std::thread::sleep(Duration::from_millis(500));
+///}
+///
+///#[instrument]
+///fn short() {
+///    std::thread::sleep(Duration::from_millis(50));
+///}
+///
+///
+///fn long_scoped() {
+///    scope!("long_scoped");
+///    std::thread::sleep(Duration::from_millis(500));
+///}
+///
+///
+///fn short_scoped() {
+///    scope!("short_scoped");
+///    std::thread::sleep(Duration::from_millis(50));
+///}
+///
+///fn main() {
+///    let metrics = Metrics::new(1);
+///
+///    let t1 =  std::thread::spawn(|| {
+///        (0..10).for_each(|_| long_scoped());
+///        (0..10).for_each(|_| long());
+///        (0..10).for_each(|_| short_scoped());
+///        (0..10).for_each(|_| short());
+///    });
+///
+///    let t2 =  std::thread::spawn(|| {
+///        (0..10).for_each(|_| long_scoped());
+///        (0..10).for_each(|_| long());
+///        (0..10).for_each(|_| short_scoped());
+///        (0..10).for_each(|_| short());
+///    });
+///
+///    t1.join().unwrap();
+///    t2.join().unwrap();
+///
+///    metrics.for_each_histogram(|span_name, h| {
+///        println!("{} -> {:.2}ms", span_name, h.mean() / 1_000_000.0);
+///    });
+///}
+/// ```
+
+
 use crossbeam_channel::{Receiver, Sender};
 use fxhash::FxHashMap;
 pub use hdrhistogram as histogram;
@@ -7,15 +70,71 @@ use quanta::Clock;
 
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc,
     },
     thread::JoinHandle,
 };
 
-#[macro_export]
+///
+///
+/// # Examples
+/// ```
+/// use game_metrics::{instrument, Metrics};
+///
+/// #[instrument]
+/// fn scoped() {
+///     let do_stuff = 1 + 1;
+/// }
+///
+/// #[instrument(name = "test")]
+/// fn named() {
+///    let do_stuff = 1 + 1;
+/// }
+///
+/// let metrics = Metrics::new(1);
+///
+/// (0..1000).for_each(|_| scoped());
+/// (0..1000).for_each(|_| named());
+///
+/// let mut count = 0;
+///
+/// metrics.flush();
+/// metrics.for_each_histogram(|span_name, h| {
+///     println!("{}", span_name);
+///     assert!(h.mean() > 0.0);
+///     count += 1;
+/// });
+/// assert_eq!(count, 2);
+/// ```
 pub use game_metrics_macro::instrument;
 
+lazy_static::lazy_static! {
+    static ref CHANNEL: Channel = Channel::new();
+}
+
+///
+///
+/// # Examples
+/// ```
+/// use game_metrics::{scope, Metrics};
+///
+/// fn scoped() {
+///
+/// }
+///
+/// let metrics = Metrics::new(1);
+///
+/// (0..1000).for_each(|_| scoped());
+///
+/// metrics.flush();
+/// metrics.for_each_histogram(|span_name, h| {
+///     assert_eq!(span_name, "MyScope");
+///     assert!(h.mean() > 0.0);
+/// });
+/// ```
+
+#[cfg(not(feature = "disable"))]
 #[macro_export]
 macro_rules! scope(
     ($span_name:literal) => (
@@ -23,57 +142,106 @@ macro_rules! scope(
     )
 );
 
-pub struct Channel {
+#[cfg(feature = "disable")]
+#[macro_export]
+macro_rules! scope(
+    ($span_name:literal) => (
+
+    )
+);
+
+/// Events dispatched by various instrumentation functions.
+pub enum Event {
+    /// A `Span` has been entered
+    SpanEnter(&'static str),
+    /// A `Span` has been dropped
+    SpanExit {
+        span_name: &'static str,
+        elapsed: u64,
+    },
+}
+
+
+/// Provides external users with the ability to directly subscribe to the raw metric events
+/// crossbeam channel.
+pub struct RawSubscription {
+    receiver: Receiver<Event>,
+}
+impl RawSubscription {
+    /// Create a new raw subscription.
+    pub fn new() -> Self {
+        Self {
+            receiver: CHANNEL.channel.1.clone()
+        }
+    }
+}
+impl Drop for RawSubscription {
+    fn drop(&mut self) {
+        CHANNEL.subscribers.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+impl std::ops::Deref for RawSubscription {
+    type Target = Receiver<Event>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.receiver
+    }
+}
+
+
+struct Channel {
+    subscribers: AtomicU32,
     channel: (Sender<Event>, Receiver<Event>),
     clock: Clock,
 }
 impl Channel {
     fn new() -> Self {
         Self {
+            subscribers: AtomicU32::new(0),
             channel: crossbeam_channel::unbounded(),
             clock: Clock::default(),
         }
     }
-    pub fn send(&self, event: Event) {
-        self.channel.0.send(event);
-    }
-
-    pub fn recv(&self) -> Option<Event> {
-        if let Ok(event) = self.channel.1.try_recv() {
-            Some(event)
-        } else {
-            None
+    #[cfg(not(feature = "disable"))]
+    fn send(&self, event: Event) {
+        if self.subscribers.load(Ordering::SeqCst) > 0 {
+            self.channel.0.send(event).unwrap();
         }
     }
-}
 
-pub enum Event {
-    Enter(&'static str),
-    Exit {
-        span_name: &'static str,
-        elapsed: u64,
-    },
-}
-impl Event {
-    fn name(&self) -> &'static str {
-        match self {
-            Event::Enter(name) => name,
-            Event::Exit { span_name, .. } => span_name,
+    #[cfg(not(feature = "disable"))]
+    fn recv(&self) -> Option<Event> {
+        if self.subscribers.load( Ordering::SeqCst) > 0 {
+            if let Ok(event) = self.channel.1.try_recv() {
+                return Some(event);
+            }
         }
+        None
+    }
+
+    #[cfg(feature = "disable")]
+    fn send(&self, event: Event) {
+
+    }
+    #[cfg(feature = "disable")]
+    fn recv(&self) -> Option<Event> {
+        None
     }
 }
 
-lazy_static::lazy_static! {
-    static ref CHANNEL: Channel = Channel::new();
-}
-
+/// The raw span RAII guard which is used for scoping spans of code for instrumentation.
+///
+/// On construction, the `Span` emits a `Event::SpanEnter` event, and saves its creation time.
+///
+/// On `Drop`, the `Span` emits an `Event::SpanExit` event, which includes the elapsed time
+/// calculated from the saved start time to the time of drop.
 pub struct Span {
     name: &'static str,
     start: u64,
 }
 impl Span {
     pub fn new(name: &'static str) -> Self {
-        CHANNEL.send(Event::Enter(name));
+        CHANNEL.send(Event::SpanEnter(name));
 
         Self {
             name,
@@ -84,13 +252,15 @@ impl Span {
 impl Drop for Span {
     fn drop(&mut self) {
         let elapsed = CHANNEL.clock.now() - self.start;
-        CHANNEL.send(Event::Exit {
+        CHANNEL.send(Event::SpanExit {
             span_name: self.name,
             elapsed,
         });
     }
 }
 
+/// The metrics struct is used to initialize the metrics communications channels and access the
+/// `Histogram` data for each named metric.
 pub struct Metrics {
     histograms: Arc<Mutex<FxHashMap<&'static str, Histogram<u64>>>>,
 
@@ -99,9 +269,11 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub fn for_each_histogram<F>(&self, f: F)
+    /// Iterate the histograms created. This function accepts a closure of `FnMut(&'static str, &Histogram<u64>)`
+    /// taking the span name and the histogram as arguments.
+    pub fn for_each_histogram<F>(&self, mut f: F)
     where
-        F: Fn(&'static str, &Histogram<u64>),
+        F: FnMut(&'static str, &Histogram<u64>),
     {
         self.histograms
             .lock()
@@ -109,6 +281,23 @@ impl Metrics {
             .for_each(|(name, histogram)| (f)(name, histogram))
     }
 
+    /// Blocks the current thread until the worker thread has completed flushing the receiver.
+    ///
+    /// # Warning
+    /// In high contention situations, this may block indefinitely. This method is meant to be
+    /// used in the context of a game engine, where execution can be guaranteed to be blocked for
+    /// metric collection.
+    pub fn flush(&self) {
+        while ! CHANNEL.channel.1.is_empty() {
+            std::thread::yield_now();
+        }
+    }
+
+    /// Creates a new metrcs instance, initializing metrics and spawning a worker to collect the data.
+    ///
+    /// # Warning
+    /// Any given instance of `Metrics` will globally collect a duplicate of the `Histgram` data. Only
+    /// one instance should be active at a time.
     pub fn new(sigfig: u8) -> Metrics {
         let worker_flag = Arc::new(AtomicBool::new(true));
         let histograms = Arc::new(Mutex::new(FxHashMap::default()));
@@ -119,20 +308,23 @@ impl Metrics {
             while inner_flag.load(Ordering::Relaxed) {
                 while let Some(event) = CHANNEL.recv() {
                     match event {
-                        Event::Exit { span_name, elapsed } => {
+                        Event::SpanExit { span_name, elapsed } => {
                             inner_histograms
                                 .lock()
                                 .entry(span_name)
                                 .or_insert(
                                     Histogram::new_with_bounds(1, 1_000_000_000, sigfig).unwrap(),
                                 )
-                                .record(elapsed);
+                                .record(elapsed)
+                                .unwrap();
                         }
                         _ => {}
                     }
                 }
             }
         });
+
+        CHANNEL.subscribers.fetch_add(1, Ordering::SeqCst);
 
         Self {
             histograms,
@@ -143,6 +335,8 @@ impl Metrics {
 }
 impl Drop for Metrics {
     fn drop(&mut self) {
+        CHANNEL.subscribers.fetch_sub(1, Ordering::SeqCst);
+
         self.worker_flag.store(false, Ordering::Relaxed);
         self.worker_handle.take().unwrap().join().unwrap();
     }

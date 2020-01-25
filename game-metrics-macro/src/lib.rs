@@ -14,6 +14,7 @@ use crate::proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, AttributeArgs, Item, LitStr, Meta, NestedMeta};
 
+#[cfg(not(feature = "disable"))]
 #[proc_macro_attribute]
 pub fn instrument(attr: TokenStream, input: TokenStream) -> TokenStream {
     let attrs = parse_macro_input!(attr as AttributeArgs);
@@ -52,3 +53,10 @@ pub fn instrument(attr: TokenStream, input: TokenStream) -> TokenStream {
         _ => panic!("unsupported type for the #[instrument] macro"),
     }
 }
+
+#[cfg(feature = "disable")]
+#[proc_macro_attribute]
+pub fn instrument(attr: TokenStream, input: TokenStream) -> TokenStream {
+    input.into()
+}
+

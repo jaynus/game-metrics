@@ -98,11 +98,11 @@ dependencies = [
 
 [[package]]
 name = "game-metrics"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "crossbeam-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fxhash 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "game-metrics-macro 0.0.3",
+ "game-metrics-macro 0.0.4",
  "hdrhistogram 7.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "game-metrics-macro"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "proc-macro2 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",

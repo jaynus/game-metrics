@@ -1,9 +1,9 @@
 [package]
 name = "game-metrics-macro"
-version = "0.0.3"
+version = "0.0.4"
 repository = "https://github.com/jaynus/game-metrics"
 description = "Macro crate to support game-metrics"
-documentation = "https://github.com/jaynus/game-metrics/game-metrics"
+documentation = "https://docs.rs/game-metrics"
 authors = ["Walter Pearce <jaynus@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -15,3 +15,7 @@ proc-macro2 = "1"
 
 [lib]
 proc-macro = true
+
+[features]
+default = []
+disable = []
