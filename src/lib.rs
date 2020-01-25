@@ -315,8 +315,7 @@ impl Metrics {
                                 .or_insert(
                                     Histogram::new_with_bounds(1, 1_000_000_000, sigfig).unwrap(),
                                 )
-                                .record(elapsed)
-                                .unwrap();
+                                .record(elapsed);
                         }
                         _ => {}
                     }
