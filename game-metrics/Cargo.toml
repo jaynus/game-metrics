@@ -1,0 +1,21 @@
+[package]
+name = "game-metrics"
+version = "0.0.3"
+repository = "https://github.com/jaynus/game-metrics"
+description = "A simple crate for effective metrics instrumentation targeted at games."
+documentation = "https://github.com/jaynus/game-metrics-macros"
+authors = ["Walter Pearce <jaynus@gmail.com>"]
+edition = "2018"
+license = "MIT"
+
+
+[dependencies]
+#game-metrics-macro = { path = "../game-metrics-macro" }
+game-metrics-macro = "0.0.3"
+
+lazy_static = "1.4"
+crossbeam-channel = "0.4"
+hdrhistogram = "7.0"
+parking_lot = "0.10"
+fxhash = "0.2"
+quanta = "0.3"

@@ -1,0 +1,17 @@
+[package]
+name = "game-metrics-macro"
+version = "0.0.3"
+repository = "https://github.com/jaynus/game-metrics"
+description = "Macro crate to support game-metrics"
+documentation = "https://github.com/jaynus/game-metrics/game-metrics"
+authors = ["Walter Pearce <jaynus@gmail.com>"]
+edition = "2018"
+license = "MIT"
+
+[dependencies]
+syn = { version = "1", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+
+[lib]
+proc-macro = true
