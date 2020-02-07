@@ -15,11 +15,16 @@ game-metrics-macro = "0.0.4"
 
 lazy_static = "1.4"
 crossbeam-channel = "0.4"
-hdrhistogram = "7.0"
 parking_lot = "0.10"
 fxhash = "0.2"
-quanta = "0.3"
+
+hdrhistogram = { version = "7.0", optional = true }
+quanta = { version = "0.3", optional = true }
+
+log = { version = "0.4", optional = true }
 
 [features]
-default = []
+default = ["metrics", "logging"]
 disable = []
+metrics = ["hdrhistogram", "quanta",]
+logging = ["quanta", "log" ]
