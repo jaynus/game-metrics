@@ -26,8 +26,8 @@ struct InternalRecord {
 
 #[derive(Default)]
 pub struct Settings {
-    targets: FxHashMap<String, Level>,
-    _paths: Vec<String>,
+    pub targets: FxHashMap<String, Level>,
+    paths: Vec<String>,
 }
 
 pub struct Logger {

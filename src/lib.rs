@@ -74,4 +74,6 @@ pub use game_metrics_macro::instrument;
 mod logging;
 
 #[cfg(feature = "logging")]
-pub use logging::Logger;
+pub use logging::{Logger, Settings as LoggerSettings};
+
+pub use log::Level as LogLevel;
