@@ -34,30 +34,30 @@
 ///    std::thread::sleep(Duration::from_millis(50));
 ///}
 ///
-///fn main() {
-///    let metrics = Metrics::new(1);
 ///
-///    let t1 =  std::thread::spawn(|| {
-///        (0..10).for_each(|_| long_scoped());
-///        (0..10).for_each(|_| long());
-///        (0..10).for_each(|_| short_scoped());
-///        (0..10).for_each(|_| short());
-///    });
+///let metrics = Metrics::new(1);
 ///
-///    let t2 =  std::thread::spawn(|| {
-///        (0..10).for_each(|_| long_scoped());
-///        (0..10).for_each(|_| long());
-///        (0..10).for_each(|_| short_scoped());
-///        (0..10).for_each(|_| short());
-///    });
+///let t1 =  std::thread::spawn(|| {
+///    (0..10).for_each(|_| long_scoped());
+///    (0..10).for_each(|_| long());
+///    (0..10).for_each(|_| short_scoped());
+///    (0..10).for_each(|_| short());
+///});
 ///
-///    t1.join().unwrap();
-///    t2.join().unwrap();
+///let t2 =  std::thread::spawn(|| {
+///    (0..10).for_each(|_| long_scoped());
+///    (0..10).for_each(|_| long());
+///    (0..10).for_each(|_| short_scoped());
+///    (0..10).for_each(|_| short());
+///});
 ///
-///    metrics.for_each_histogram(|span_name, h| {
-///        println!("{} -> {:.2}ms", span_name, h.mean() / 1_000_000.0);
-///    });
-///}
+///t1.join().unwrap();
+///t2.join().unwrap();
+///
+///metrics.for_each_histogram(|span_name, h| {
+///    println!("{} -> {:.2}ms", span_name, h.mean() / 1_000_000.0);
+///});
+///
 /// ```
 
 
@@ -65,7 +65,7 @@
 mod metrics;
 
 #[cfg(feature = "metrics")]
-pub use metrics::{Event, Metrics, RawSubscription, Span};
+pub use metrics::{Event, Metrics, Span};
 
 #[cfg(feature = "metrics")]
 pub use game_metrics_macro::instrument;
@@ -76,4 +76,5 @@ mod logging;
 #[cfg(feature = "logging")]
 pub use logging::{Logger, Settings as LoggerSettings};
 
+#[cfg(feature = "logging")]
 pub use log::Level as LogLevel;

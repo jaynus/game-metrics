@@ -1,6 +1,6 @@
 [package]
 name = "game-metrics"
-version = "0.0.4"
+version = "0.0.5"
 repository = "https://github.com/jaynus/game-metrics"
 description = "A simple crate for effective metrics instrumentation targeted at games."
 documentation = "https://docs.rs/game-metrics"
@@ -10,21 +10,19 @@ license = "MIT"
 
 
 [dependencies]
-#game-metrics-macro = { path = "../game-metrics-macro" }
 game-metrics-macro = "0.0.4"
-
 lazy_static = "1.4"
-crossbeam-channel = "0.4"
 parking_lot = "0.10"
 fxhash = "0.2"
 
+crossbeam-channel = { version = "0.4", optional = true }
 hdrhistogram = { version = "7.0", optional = true }
 quanta = { version = "0.3", optional = true }
-
 log = { version = "0.4", optional = true }
 
 [features]
-default = ["metrics", "logging"]
+default = ["metrics", "logging", "threads"]
 disable = []
 metrics = ["hdrhistogram", "quanta",]
 logging = ["quanta", "log" ]
+threads = ["crossbeam-channel"]
