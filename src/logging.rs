@@ -108,10 +108,6 @@ impl Logger {
         }
     }
 
-    pub fn change_settings(settings: Settings) {
-        *LOGGER.borrow_mut().settings = settings;
-    }
-
     pub fn init() -> Result<(), SetLoggerError> {
         log::set_logger(&*LOGGER.as_ref()).map(|()| log::set_max_level(LevelFilter::Trace))
     }
@@ -120,6 +116,7 @@ impl Logger {
 impl Log for Logger {
     fn enabled(&self, meta: &Metadata) -> bool {
         self.settings
+            .lock()
             .targets
             .get(meta.target())
             .map(|level| *level <= meta.level())
