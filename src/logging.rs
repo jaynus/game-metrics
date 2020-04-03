@@ -108,6 +108,16 @@ impl Logger {
         }
     }
 
+    #[cfg(feature = "threads")]
+    pub fn swap_settings(settings: Settings) {
+        *(*LOGGER).settings.lock() = settings;
+    }
+
+    #[cfg(not(feature = "threads"))]
+    pub fn swap_settings(settings: Settings) {
+        LOGGER.settings = settings;
+    }
+
     pub fn init() -> Result<(), SetLoggerError> {
         log::set_logger(&*LOGGER.as_ref()).map(|()| log::set_max_level(LevelFilter::Trace))
     }
@@ -115,14 +125,16 @@ impl Logger {
 #[cfg(feature = "threads")]
 impl Log for Logger {
     fn enabled(&self, meta: &Metadata) -> bool {
-        self.settings
-            .lock()
+        let settings = self.settings.lock();
+
+        settings
             .targets
             .get(meta.target())
             .map(|level| *level <= meta.level())
-            .unwrap_or(false)
+            .unwrap_or(false) || settings.targets.iter().any(|(key, level)| {
+            *level <= meta.level() && meta.target().starts_with(key)
+        })
     }
-
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             self.channel.0.send(InternalRecord {
@@ -161,7 +173,6 @@ impl Logger {
         }
     }
 
-
     pub fn init() -> Result<(), SetLoggerError> {
         log::set_logger(&*LOGGER).map(|()| log::set_max_level(LevelFilter::Trace))
     }
@@ -173,7 +184,9 @@ impl Log for Logger {
             .targets
             .get(meta.target())
             .map(|level| *level <= meta.level())
-            .unwrap_or(false)
+            .unwrap_or(false) || self.settings.targets.iter().any(|(key, level)| {
+                *level <= meta.level() && meta.target().starts_with(key)
+            })
     }
 
     fn log(&self, record: &Record) {
